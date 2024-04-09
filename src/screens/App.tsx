@@ -1,6 +1,6 @@
 import "fast-text-encoding";
 import "@walletconnect/react-native-compat";
-import { Button, StyleSheet, Text, TextInput, View, Linking } from "react-native";
+import { Button, StyleSheet, Text, TextInput, View, Linking, ScrollView, Alert } from "react-native";
 import { registerRootComponent } from "expo";
 import { SignClientTypes, SessionTypes } from "@walletconnect/types";
 import { getSdkError } from "@walletconnect/utils";
@@ -32,6 +32,7 @@ export default function App() {
     const handleOpenURL = async (event: { url: string }) => {
       const url = event.url;
       console.log('Received deep link:', url);
+      Alert.alert('Deep Link', `Received deep link: ${url}`);
       if (url.startsWith('web3wallettutorial://wc')) {
         const wcUri = url.replace('web3wallettutorial://wc?uri=', '');
         await pair(wcUri);
@@ -50,16 +51,19 @@ export default function App() {
       console.log('Pairing with URI:', uri);
       const { topic, params } = await web3WalletPair({ uri });
       console.log('Pairing successful. Topic:', topic);
+      Alert.alert('Pairing Successful', `Pairing successful. Topic: ${topic}`);
       setCurrentProposal({ id: topic, params });
       setModalVisible(true);
     } catch (error) {
       console.log('Error pairing:', error);
+      Alert.alert('Pairing Error', `Error pairing: ${error}`);
     }
   }
 
   const onSessionProposal = useCallback(
     (proposal: SignClientTypes.EventArguments["session_proposal"]) => {
       console.log('Received session proposal:', proposal);
+      Alert.alert('Session Proposal', 'Received session proposal');
       setModalVisible(true);
       setCurrentProposal(proposal);
     },
@@ -95,6 +99,7 @@ export default function App() {
       setModalVisible(false);
       setCurrentProposal(undefined);
       setSuccessfulSession(true);
+      Alert.alert('Session Approved', 'Session approved successfully');
     }
   }
 
@@ -108,6 +113,7 @@ export default function App() {
         topic,
         reason: getSdkError("USER_DISCONNECTED"),
       });
+      Alert.alert('Session Disconnected', `Disconnected session with topic: ${topic}`);
     }
     setSuccessfulSession(false);
   }
@@ -124,6 +130,7 @@ export default function App() {
 
       setModalVisible(false);
       setCurrentProposal(undefined);
+      Alert.alert('Session Rejected', `Rejected session proposal with id: ${id}`);
     }
   }
 
@@ -135,6 +142,7 @@ export default function App() {
         web3wallet.engine.signClient.session.get(topic);
 
       console.log('Received session request:', requestEvent);
+      Alert.alert('Session Request', 'Received session request');
 
       switch (request.method) {
         case EIP155_SIGNING_METHODS.ETH_SIGN:
@@ -149,6 +157,7 @@ export default function App() {
           
           if (approved) {
             console.log('User approved transaction');
+            Alert.alert('Transaction Approved', 'User approved transaction');
             const result = await web3wallet.sendTransaction(requestEvent);
             await web3wallet.respondSessionRequest({
               topic,
@@ -156,6 +165,7 @@ export default function App() {
             });
           } else {
             console.log('User rejected transaction');
+            Alert.alert('Transaction Rejected', 'User rejected transaction');
             await web3wallet.respondSessionRequest({
               topic,
               response: {
@@ -166,6 +176,7 @@ export default function App() {
           break;
         default:
           console.log('Unsupported request method:', request.method);
+          Alert.alert('Unsupported Request', `Unsupported request method: ${request.method}`);
           break;
       }
     },
