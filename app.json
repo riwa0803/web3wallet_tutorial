@@ -1,6 +1,7 @@
 {
   "expo": {
-    "name": "web3wallet_tutorial",
+    "scheme": "web3wallettutorial",
+    "name": "web3wallettutorial",
     "slug": "web3wallet_tutorial",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -21,10 +22,16 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.rikrok.web3wallet_tutorial"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "5d1e439e-a9d4-4d40-962e-525954058724"
+      }
     }
   }
 }

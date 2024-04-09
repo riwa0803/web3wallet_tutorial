@@ -1,6 +1,6 @@
 import "fast-text-encoding";
 import "@walletconnect/react-native-compat";
-import { Button, StyleSheet, Text, TextInput, View } from "react-native";
+import { Button, StyleSheet, Text, TextInput, View, Linking } from "react-native";
 import { registerRootComponent } from "expo";
 import { SignClientTypes, SessionTypes } from "@walletconnect/types";
 import { getSdkError } from "@walletconnect/utils";
@@ -14,6 +14,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import PairingModal from "./PairingModal";
 import { EIP155_SIGNING_METHODS } from "../utils/EIP155Lib";
 import SignModal from "./SignModal";
+import { parseWalletConnectUri } from "@walletconnect/utils";
 
 export default function App() {
   useInitialization();
@@ -22,19 +23,43 @@ export default function App() {
   const [signModalVisible, setSignModalVisible] = useState(false);
   const [successfulSession, setSuccessfulSession] = useState(false);
 
-  const [currentWCURI, setCurrentWCURI] = useState("");
   const [currentProposal, setCurrentProposal] = useState();
 
   const [requestSession, setRequestSession] = useState();
   const [requestEventData, setRequestEventData] = useState();
 
-  async function pair() {
-    const pairing = await web3WalletPair({ uri: currentWCURI });
-    return pairing;
+  useEffect(() => {
+    const handleOpenURL = async (event: { url: string }) => {
+      const url = event.url;
+      console.log('Received deep link:', url);
+      if (url.startsWith('web3wallettutorial://wc')) {
+        const wcUri = url.replace('web3wallettutorial://wc?uri=', '');
+        await pair(wcUri);
+      }
+    };
+
+    const linkingSubscription = Linking.addEventListener('url', handleOpenURL);
+
+    return () => {
+      linkingSubscription.remove();
+    };
+  }, []);
+
+  async function pair(uri: string) {
+    try {
+      console.log('Pairing with URI:', uri);
+      const { topic, params } = await web3WalletPair({ uri });
+      console.log('Pairing successful. Topic:', topic);
+      setCurrentProposal({ id: topic, params });
+      setModalVisible(true);
+    } catch (error) {
+      console.log('Error pairing:', error);
+    }
   }
 
   const onSessionProposal = useCallback(
     (proposal: SignClientTypes.EventArguments["session_proposal"]) => {
+      console.log('Received session proposal:', proposal);
       setModalVisible(true);
       setCurrentProposal(proposal);
     },
@@ -60,6 +85,7 @@ export default function App() {
         };
       });
 
+      console.log('Approving session with namespaces:', namespaces);
       await web3wallet.approveSession({
         id,
         relayProtocol: relays[0].protocol,
@@ -67,7 +93,6 @@ export default function App() {
       });
 
       setModalVisible(false);
-      setCurrentWCURI("");
       setCurrentProposal(undefined);
       setSuccessfulSession(true);
     }
@@ -78,6 +103,7 @@ export default function App() {
     const topic = Object.values(activeSessions)[0].topic;
 
     if (activeSessions) {
+      console.log('Disconnecting session with topic:', topic);
       await web3wallet.disconnectSession({
         topic,
         reason: getSdkError("USER_DISCONNECTED"),
@@ -90,13 +116,13 @@ export default function App() {
     const { id } = currentProposal;
 
     if (currentProposal) {
+      console.log('Rejecting session proposal with id:', id);
       await web3wallet.rejectSession({
         id,
         reason: getSdkError("USER_REJECTED_METHODS"),
       });
 
       setModalVisible(false);
-      setCurrentWCURI("");
       setCurrentProposal(undefined);
     }
   }
@@ -108,13 +134,39 @@ export default function App() {
       const requestSessionData =
         web3wallet.engine.signClient.session.get(topic);
 
+      console.log('Received session request:', requestEvent);
+
       switch (request.method) {
         case EIP155_SIGNING_METHODS.ETH_SIGN:
         case EIP155_SIGNING_METHODS.PERSONAL_SIGN:
           setRequestSession(requestSessionData);
           setRequestEventData(requestEvent);
           setSignModalVisible(true);
-          return;
+          break;
+        case EIP155_SIGNING_METHODS.ETH_SEND_TRANSACTION:
+          console.log('Received transaction request:', request.params);
+          const approved = await showTransactionApprovalUI(request.params);
+          
+          if (approved) {
+            console.log('User approved transaction');
+            const result = await web3wallet.sendTransaction(requestEvent);
+            await web3wallet.respondSessionRequest({
+              topic,
+              response: result,
+            });
+          } else {
+            console.log('User rejected transaction');
+            await web3wallet.respondSessionRequest({
+              topic,
+              response: {
+                error: getSdkError('USER_REJECTED_METHODS'),
+              },
+            });
+          }
+          break;
+        default:
+          console.log('Unsupported request method:', request.method);
+          break;
       }
     },
     []
@@ -124,7 +176,6 @@ export default function App() {
     web3wallet?.on("session_proposal", onSessionProposal);
     web3wallet?.on("session_request", onSessionRequest);
   }, [
-    pair,
     handleAccept,
     handleReject,
     currentETHAddress,
@@ -141,19 +192,9 @@ export default function App() {
           ETH Address: {currentETHAddress ? currentETHAddress : "Loading..."}
         </Text>
 
-        {!successfulSession ? (
-          <View>
-            <TextInput
-              style={styles.textInputContainer}
-              onChangeText={setCurrentWCURI}
-              value={currentWCURI}
-              placeholder="Enter WC URI (wc:1234...)"
-            />
-            <Button onPress={() => pair()} title="Pair Session" />
-          </View>
-        ) : (
+        {successfulSession ? (
           <Button onPress={() => disconnect()} title="Disconnect" />
-        )}
+        ) : null}
       </View>
 
       <PairingModal

@@ -16,13 +16,14 @@ async function createWeb3Wallet() {
   // Here we create / restore an EIP155 wallet
   const { eip155Addresses } = await createOrRestoreEIP155Wallet();
   currentETHAddress = eip155Addresses[0];
+  console.log("Current ETH Address:", currentETHAddress);
 
   // HardCoding it here for ease of tutorial
   // Paste your project ID here
   const ENV_PROJECT_ID = "584495c68516f78a2aa4e225307b4f07";
   const core = new Core({
     projectId: ENV_PROJECT_ID,
-  });
+});
 
   // Edit the metadata to your preference
   web3wallet = await Web3Wallet.init({
@@ -30,8 +31,11 @@ async function createWeb3Wallet() {
     metadata: {
       name: "Web3Wallet React Native Tutorial",
       description: "ReactNative Web3Wallet",
-      url: "https://walletconnect.com/",
+      url: 'web3wallet_tutorial://',
       icons: ["https://avatars.githubusercontent.com/u/37784886"],
+      redirect: {
+        native: 'web3wallet_tutorial://',
+      },
     },
   });
 }
@@ -47,6 +51,7 @@ export default function useInitialization() {
     } catch (err: unknown) {
       console.log("Error for initializing", err);
     }
+    console.log("Initialized");
   }, []);
 
   useEffect(() => {
@@ -59,5 +64,6 @@ export default function useInitialization() {
 }
 
 export async function web3WalletPair(params: { uri: string }) {
+    console.log("Paired");
   return await web3wallet.core.pairing.pair({ uri: params.uri });
 }
